@@ -1,0 +1,82 @@
+-- Step 1: Remove duplicates
+;WITH CTE_Layoffs AS (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, [date], stage, country, funds_raised_millions 
+                              ORDER BY [date]) AS row_num
+    FROM layoffs_raw
+)
+DELETE FROM [dbo].[layoffs_raw]
+WHERE EXISTS (
+    SELECT 1
+    FROM CTE_Layoffs
+    WHERE CTE_Layoffs.row_num >= 2
+      AND [dbo].[layoffs_raw].company = CTE_Layoffs.company
+      AND [dbo].[layoffs_raw].location = CTE_Layoffs.location
+      AND [dbo].[layoffs_raw].industry = CTE_Layoffs.industry
+      AND [dbo].[layoffs_raw].total_laid_off = CTE_Layoffs.total_laid_off
+      AND [dbo].[layoffs_raw].percentage_laid_off = CTE_Layoffs.percentage_laid_off
+      AND [dbo].[layoffs_raw].[date] = CTE_Layoffs.[date]
+      AND [dbo].[layoffs_raw].stage = CTE_Layoffs.stage
+      AND [dbo].[layoffs_raw].country = CTE_Layoffs.country
+      AND [dbo].[layoffs_raw].funds_raised_millions = CTE_Layoffs.funds_raised_millions
+);
+
+--  Standardize data (remove extra spaces and convert to lowercase)
+UPDATE layoffs_raw
+SET company = LOWER(LTRIM(RTRIM(company))),
+    industry = LOWER(LTRIM(RTRIM(industry))),
+    location = LOWER(LTRIM(RTRIM(location)));
+
+-- Replace special characters (replace '&' with 'and' in company names)
+UPDATE layoffs_raw
+SET company = REPLACE(company, '&', 'and');
+
+
+SELECT CONVERT(VARCHAR(10), [date], 23) AS formatted_date
+FROM layoffs_raw;
+
+SELECT CONVERT(VARCHAR(10), [date], 103) AS formatted_date -- Convert to 'DD/MM/YYYY'
+FROM layoffs_raw;
+
+--font change 
+UPDATE layoffs_raw
+SET [date] = CONVERT(VARCHAR(10), [date], 103); -- Change to 'DD/MM/YYYY' format
+
+UPDATE layoffs_raw
+SET company = UPPER(LEFT(company, 1)) + LOWER(SUBSTRING(company, 2, LEN(company)));
+UPDATE layoffs_raw
+SET location = UPPER(LEFT(location, 1)) + LOWER(SUBSTRING(location, 2, LEN(location)));
+
+UPDATE layoffs_raw
+SET industry = UPPER(LEFT(industry, 1)) + LOWER(SUBSTRING(industry, 2, LEN(industry)));
+
+
+--null values 
+--SELECT percentage_laid_off
+--FROM layoffs_raw
+--WHERE percentage_laid_off ='NULL';
+ 
+ UPDATE layoffs_raw
+SET percentage_laid_off = 0
+WHERE percentage_laid_off ='NULL';
+
+ 
+--SELECT total_laid_off
+--FROM layoffs_raw
+--WHERE total_laid_off ='NULL';
+
+UPDATE layoffs_raw
+SET total_laid_off = 0
+WHERE total_laid_off ='NULL';
+
+ 
+--missing values  
+UPDATE t1
+SET t1.industry = t2.industry
+FROM layoffs_raw t1
+JOIN layoffs_raw t2
+     ON t1.company = t2.company
+WHERE t1.industry = '' AND t2.industry IS NOT NULL;
+
+SELECT*
+FROM layoffs_raw
